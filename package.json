@@ -1,0 +1,26 @@
+{
+  "name": "jarvis-news",
+  "version": "1.0.0",
+  "description": "JARVIS NEWS - Agregador inteligente de noticias estilo Iron Man / Tony Stark, enfocado en Puerto Rico, energia, agua, economia, clima, tecnologia/IA y negocios.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "news",
+    "jarvis",
+    "puerto-rico",
+    "rss",
+    "aggregator"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "rss-parser": "^3.13.0"
+  }
+}
