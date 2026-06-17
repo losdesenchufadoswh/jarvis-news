@@ -99,7 +99,7 @@ app.post('/api/voice/transcribe', async (req, res) => {
     const buffer = Buffer.from(audio, 'base64');
     await writeFile(audioPath, buffer);
 
-    const text = execSync(`py speech-to-text.py "${audioPath}"`, { cwd: __dirname, encoding: 'utf-8' }).trim();
+    const text = execSync(`python speech-to-text.py "${audioPath}"`, { cwd: __dirname, encoding: 'utf-8' }).trim();
     await unlink(audioPath).catch(() => {});
 
     res.json({ text });
@@ -114,7 +114,7 @@ app.post('/api/voice/speak', async (req, res) => {
     if (!text) return res.status(400).json({ error: 'No text provided' });
 
     const audioPath = path.join(__dirname, 'temp-speech.wav');
-    execSync(`py text-to-speech.py "${text.replace(/"/g, '\\"')}" "${audioPath}"`, { cwd: __dirname });
+    execSync(`python text-to-speech.py "${text.replace(/"/g, '\\"')}" "${audioPath}"`, { cwd: __dirname });
 
     const audio = await readFile(audioPath, 'base64');
     await unlink(audioPath).catch(() => {});
