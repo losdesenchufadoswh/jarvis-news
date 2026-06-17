@@ -380,8 +380,11 @@ body.light .topbar { background: rgba(255,255,255,0.8); }
 .jchat-id b { font-family: 'Orbitron'; letter-spacing: 4px; font-size: 20px; display: block; }
 .jchat-id small { color: var(--success); font-family: 'Fira Code', monospace; font-size: 11px; display: inline-flex; gap: 6px; align-items: center; }
 .jchat-id small i { width: 7px; height: 7px; border-radius: 50%; background: var(--success); box-shadow: 0 0 8px var(--success); animation: blink 1.6s infinite; }
-.jchat-head .sys { margin-left: auto; font-family: 'Fira Code', monospace; font-size: 10.5px; color: var(--text-2); text-align: right; line-height: 1.5; }
+.jchat-head .sys { font-family: 'Fira Code', monospace; font-size: 10.5px; color: var(--text-2); text-align: right; line-height: 1.5; }
 .jchat-head .sys b { color: var(--primary); }
+/* el mute empuja al final */
+.jchat-head .sys ~ .jmute { margin-left: 8px; }
+.jchat-head:not(:has(.sys)) .jmute { margin-left: auto; }
 
 .jchat-msgs {
   padding: 20px; height: 360px; overflow-y: auto;
@@ -438,12 +441,32 @@ body.light .topbar { background: rgba(255,255,255,0.8); }
 }
 .jchat-input input::placeholder { color: var(--text-2); }
 .jchat-input input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0,207,255,0.12); }
-.jchat-voice {
-  width: 50px; border-radius: 12px; border: 1px solid var(--line); font-size: 20px; flex-shrink: 0;
-  background: rgba(0,207,255,0.08); color: var(--primary);
+/* Botón mute en el header del chat */
+.jmute {
+  margin-left: auto; width: 38px; height: 38px; border-radius: 10px;
+  border: 1px solid var(--line); font-size: 18px; flex-shrink: 0;
+  background: rgba(0,207,255,0.07); color: var(--primary);
   transition: .15s; cursor: pointer;
 }
-.jchat-voice:hover { border-color: var(--primary); background: rgba(0,207,255,0.15); }
+.jmute:hover { border-color: var(--primary); background: rgba(0,207,255,0.15); }
+
+/* Barra de "escuchando" */
+.jlisten-bar {
+  display: none; align-items: center; gap: 8px;
+  padding: 6px 20px; font-size: 12px; color: var(--text-2);
+  font-family: 'Fira Code', monospace; letter-spacing: .03em;
+}
+.jlisten-bar.active { display: flex; }
+.jlisten-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--primary); flex-shrink: 0;
+  animation: listenPulse 1.4s ease-in-out infinite;
+}
+@keyframes listenPulse {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50%       { opacity: 1;   transform: scale(1.35); box-shadow: 0 0 6px var(--primary); }
+}
+
 .jchat-send {
   width: 50px; border-radius: 12px; border: none; font-size: 19px; flex-shrink: 0;
   background: linear-gradient(135deg, var(--primary-2), var(--primary)); color: #02141d;

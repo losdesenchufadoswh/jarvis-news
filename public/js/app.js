@@ -68,6 +68,8 @@
   function router() {
     let hash = location.hash || '#/home';
     const [base] = hash.split('?');
+    // Si salimos del chat, destruye el reconocimiento de voz
+    if (base !== '#/chat' && JarvisVoice.isSupported()) JarvisVoice.destroy();
     // ruta de detalle: #/article/:id
     if (base.startsWith('#/article/')) {
       renderDetail(decodeURIComponent(base.replace('#/article/', '')));
@@ -142,6 +144,7 @@
 
   // ================= CHAT (pestaña JARVIS) =================
   async function renderChat() {
+    const voiceSupported = JarvisVoice.isSupported();
     view.innerHTML = `
       <div class="jarvis-hero">
         <div class="jchat">
@@ -149,75 +152,54 @@
             <div class="jchat-orb"></div>
             <div class="jchat-id"><b>JARVIS</b><small><i></i>EN LÍNEA</small></div>
             <div class="sys">SISTEMA <b>OK</b><br>BASE <b id="jSys">—</b></div>
+            ${voiceSupported ? '<button class="jmute" id="jMute" title="Silenciar/Activar voz">🔊</button>' : ''}
           </div>
           <div class="jchat-msgs" id="jMsgs"></div>
           <div class="jchat-sugs" id="jSugs"></div>
+          ${voiceSupported ? '<div class="jlisten-bar" id="jListenBar"><span class="jlisten-dot"></span><span>Escuchando…</span></div>' : ''}
           <form class="jchat-input" id="jForm" autocomplete="off">
-            <input id="jInput" placeholder="Escríbele a JARVIS…  (p. ej. «noticias de energía»)" autocomplete="off"/>
-            <button class="jchat-voice" id="jVoice" type="button" title="Hablar a JARVIS">🎤</button>
+            <input id="jInput" placeholder="Habla o escribe a JARVIS…" autocomplete="off"/>
             <button class="jchat-send" type="submit" title="Enviar">➤</button>
           </form>
         </div>
       </div>`;
+
     renderSugs(JARVIS_DEFAULT_SUGS);
-    let mediaRecorder, audioChunks = [];
-    $('#jVoice').addEventListener('click', async (e) => {
-      e.preventDefault();
-      const btn = $('#jVoice');
-      if (mediaRecorder?.state === 'recording') {
-        mediaRecorder.stop();
-        return;
-      }
-      try {
-        voiceOn = true; // si hablas, JARVIS te responde hablando
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        // Elige un mime soportado (Chrome=webm/opus, Safari=mp4). PyAV decodifica ambos.
-        const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
-          : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '';
-        mediaRecorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
-        audioChunks = [];
-        mediaRecorder.ondataavailable = (evt) => { if (evt.data.size) audioChunks.push(evt.data); };
-        mediaRecorder.onstop = async () => {
-          stream.getTracks().forEach((t) => t.stop()); // libera el micrófono
-          btn.textContent = '⏳';
-          const blob = new Blob(audioChunks, { type: mime || 'audio/webm' });
-          const reader = new FileReader();
-          reader.onload = async () => {
-            const audio = reader.result.split(',')[1];
-            try {
-              const res = await Api.voiceTranscribe(audio);
-              btn.textContent = '🎤';
-              if (res.text && res.text.trim()) {
-                $('#jInput').value = '';
-                jarvisAsk(res.text.trim()); // auto-envía lo que dijiste
-              } else {
-                toast('No te escuché bien, FER. Intenta de nuevo.');
-              }
-            } catch (err) {
-              btn.textContent = '🎤';
-              toast('Error transcribiendo: ' + err.message);
-            }
-          };
-          reader.readAsDataURL(blob);
-        };
-        mediaRecorder.start();
-        btn.textContent = '🔴';
-      } catch (err) {
-        toast('Micrófono no disponible: ' + err.message);
-      }
-    });
+
+    // Inicializa Web Speech API (continuo)
+    if (voiceSupported) {
+      JarvisVoice.init({
+        onTranscript: (text) => {
+          if (text) jarvisAsk(text);
+        },
+        onListenChange: (isListening) => {
+          const bar = $('#jListenBar');
+          if (bar) bar.classList.toggle('active', isListening);
+        },
+      });
+      $('#jMute').addEventListener('click', () => {
+        const muted = JarvisVoice.toggleMute();
+        $('#jMute').textContent = muted ? '🔇' : '🔊';
+      });
+    }
+
     $('#jForm').addEventListener('submit', (e) => {
       e.preventDefault();
-      const inp = $('#jInput'); const v = inp.value; inp.value = '';
-      jarvisAsk(v);
+      const inp = $('#jInput'); const v = inp.value.trim(); inp.value = '';
+      if (v) jarvisAsk(v);
     });
     $('#jSugs').addEventListener('click', (e) => {
       const s = e.target.closest('[data-sug]');
       if (s) jarvisAsk(s.dataset.sug);
     });
-    if (chatLog.length) paintChatLog();
-    else jarvisGreet();
-    // Rellena contadores en segundo plano.
+
+    if (chatLog.length) {
+      paintChatLog();
+      if (voiceSupported) JarvisVoice.start();
+    } else {
+      jarvisGreet();
+    }
+
     Api.yesterday().then((a) => {
       setStatus(a[0]?.fetchedAt);
       const js = $('#jSys'); if (js) js.textContent = a.length + ' noticias';
@@ -267,18 +249,9 @@
     msgs.appendChild(w); msgs.scrollTop = msgs.scrollHeight;
   }
   function hideTyping() { $('#jTyping')?.remove(); }
-  // JARVIS habla su respuesta (TTS local con Piper). Solo si el altavoz está activo.
-  let voiceOn = false;       // se activa al usar el micrófono o el botón 🔊
-  let currentAudio = null;
-  async function speakText(text) {
-    if (!voiceOn || !text) return;
-    try {
-      if (currentAudio) { currentAudio.pause(); currentAudio = null; }
-      const res = await Api.voiceSpeak(text);
-      if (!res.audio) return;
-      currentAudio = new Audio('data:audio/wav;base64,' + res.audio);
-      currentAudio.play().catch(() => {});
-    } catch (e) { /* silencioso: el texto ya está en pantalla */ }
+  function speakText(text) {
+    if (!JarvisVoice.isSupported() || JarvisVoice.isMuted()) return;
+    JarvisVoice.speak(text);
   }
   function renderSugs(list) {
     const el = $('#jSugs'); if (!el) return;
@@ -297,21 +270,54 @@
   async function jarvisGreet() {
     showTyping();
     try {
-      const g = await Api.jarvisGreeting();
+      const [g, articles] = await Promise.all([Api.jarvisGreeting(), Api.yesterday()]);
       hideTyping();
-      chatLog.push({ role: 'bot', text: g.reply, articles: g.articles });
+
+      // 1. Muestra el saludo en el chat
+      chatLog.push({ role: 'bot', text: g.reply, articles: g.articles || [] });
       const bb = paintMsg('bot');
-      typewrite(bb, g.reply, () => { if (g.articles && g.articles.length) bb.insertAdjacentHTML('beforeend', refsHtml(g.articles)); });
+      typewrite(bb, g.reply, () => {
+        if (g.articles && g.articles.length) bb.insertAdjacentHTML('beforeend', refsHtml(g.articles));
+      });
       renderSugs(g.suggestions || JARVIS_DEFAULT_SUGS);
+
+      // 2. Prepara titulares del día
+      const top5 = [...articles].sort((a, b) => b.importance - a.importance).slice(0, 5);
+      const headlineLines = top5.map((a, i) => `${i + 1}. ${a.title}`).join('\n');
+      const headlineText  = top5.map((a, i) => `${i + 1}. ${a.title}`).join('. ');
+
+      // 3. Habla saludo → luego titulares → luego empieza a escuchar
+      if (JarvisVoice.isSupported() && !JarvisVoice.isMuted()) {
+        JarvisVoice.speak(g.reply, () => {
+          // Muestra titulares en chat
+          const msg = `📰 Titulares del día:\n${headlineLines}`;
+          chatLog.push({ role: 'bot', text: msg, articles: [] });
+          const tb = paintMsg('bot');
+          if (tb) typewrite(tb, msg);
+
+          // Habla los titulares
+          JarvisVoice.speak('Los titulares del día son: ' + headlineText, () => {
+            JarvisVoice.start(); // empieza a escuchar
+          });
+        });
+      } else {
+        // Sin voz: solo muestra los titulares en chat
+        const msg = `📰 Titulares del día:\n${headlineLines}`;
+        chatLog.push({ role: 'bot', text: msg, articles: [] });
+        setTimeout(() => { const tb = paintMsg('bot'); if (tb) typewrite(tb, msg); }, 800);
+        if (JarvisVoice.isSupported()) JarvisVoice.start();
+      }
     } catch (e) {
       hideTyping();
       const bb = paintMsg('bot');
-      if (bb) { bb.textContent = 'Sistema en línea, señor. (No pude precargar el resumen, intente «Refrescar».)'; }
+      if (bb) bb.textContent = 'Sistema en línea, señor.';
       chatLog.push({ role: 'bot', text: bb ? bb.textContent : '', articles: [] });
+      if (JarvisVoice.isSupported()) JarvisVoice.start();
     }
   }
   async function jarvisAsk(text) {
     text = (text || '').trim(); if (!text) return;
+    JarvisVoice.stop(); // pausa mientras procesa
     chatLog.push({ role: 'user', text });
     const ub = paintMsg('user'); if (ub) ub.textContent = text;
     showTyping();
@@ -324,12 +330,14 @@
         if (res.articles && res.articles.length) bb.insertAdjacentHTML('beforeend', refsHtml(res.articles));
         const m = $('#jMsgs'); if (m) m.scrollTop = m.scrollHeight;
       });
+      // Habla la respuesta; al terminar reanuda la escucha automáticamente
       speakText(res.reply);
       renderSugs(res.suggestions || JARVIS_DEFAULT_SUGS);
     } catch (e) {
       hideTyping();
       const bb = paintMsg('bot');
       if (bb) bb.textContent = 'Disculpe, señor. No puedo procesar eso en este momento.';
+      if (JarvisVoice.isSupported() && !JarvisVoice.isMuted()) JarvisVoice.start();
     }
   }
 
