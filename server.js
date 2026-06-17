@@ -115,6 +115,19 @@ app.get('/api/news/category/:category', async (req, res) => {
   res.json(articles.filter((a) => a.category === req.params.category));
 });
 
+app.get('/api/news/source/:source', async (req, res) => {
+  const source = decodeURIComponent(req.params.source || '').toLowerCase().trim();
+  if (!source) return res.json([]);
+  const articles = await loadArticles({});
+  res.json(articles.filter((a) => a.source.toLowerCase().includes(source)));
+});
+
+app.get('/api/news/sources', async (req, res) => {
+  const articles = await loadArticles({});
+  const sources = [...new Set(articles.map((a) => a.source))].sort();
+  res.json(sources);
+});
+
 app.get('/api/news/search/:query', async (req, res) => {
   const q = decodeURIComponent(req.params.query || '').toLowerCase().trim();
   if (!q) return res.json([]);

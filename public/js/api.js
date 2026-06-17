@@ -12,6 +12,8 @@ window.Api = (() => {
     today:         (refresh) => get('/api/news/today' + (refresh ? '?refresh=1' : '')),
     all:           (refresh) => get('/api/news/all' + (refresh ? '?refresh=1' : '')),
     category:      (id)      => get('/api/news/category/' + encodeURIComponent(id)),
+    source:        (src)     => get('/api/news/source/' + encodeURIComponent(src)),
+    sources:       ()        => get('/api/news/sources'),
     search:        (q)       => get('/api/news/search/' + encodeURIComponent(q)),
     byDate:        (d)       => get('/api/news/date/' + encodeURIComponent(d)),
     article:       (id)      => get('/api/news/' + encodeURIComponent(id)),

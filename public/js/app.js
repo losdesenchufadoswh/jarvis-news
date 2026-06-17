@@ -279,7 +279,7 @@
   }
 
   // ================= ALL (grid + filtros + buscar) =================
-  let allState = { q: '', cat: 'all', sort: 'importance', list: false };
+  let allState = { q: '', cat: 'all', source: 'all', sort: 'importance', list: false };
   async function renderAll() {
     view.innerHTML = `
       <div class="page-head"><div class="page-title">📰 Todas las noticias
@@ -289,6 +289,9 @@
         <select class="select" id="sort">
           <option value="importance">Más importante</option>
           <option value="recent">Más reciente</option>
+        </select>
+        <select class="select" id="source">
+          <option value="all">Todas las fuentes</option>
         </select>
         <button class="chip ${allState.list ? '' : 'active'}" id="viewGrid">▦ Grid</button>
         <button class="chip ${allState.list ? 'active' : ''}" id="viewList">≣ Lista</button>
@@ -303,10 +306,20 @@
       `<button class="chip ${allState.cat === c.id ? 'active' : ''}" data-cat="${c.id}">${c.icon} ${UI.esc(c.label)}</button>`).join('');
 
     if (!cacheAll) cacheAll = await Api.all();
+    const sources = await Api.sources();
+    const sourceSelect = $('#source');
+    sources.forEach((s) => {
+      const opt = document.createElement('option');
+      opt.value = s;
+      opt.textContent = s;
+      sourceSelect.appendChild(opt);
+    });
+    sourceSelect.value = allState.source;
     paintAll();
 
     $('#q').addEventListener('input', (e) => { allState.q = e.target.value; paintAll(); });
     $('#sort').addEventListener('change', (e) => { allState.sort = e.target.value; paintAll(); });
+    $('#source').addEventListener('change', (e) => { allState.source = e.target.value; paintAll(); });
     $('#viewGrid').addEventListener('click', () => { allState.list = false; renderAll(); });
     $('#viewList').addEventListener('click', () => { allState.list = true; renderAll(); });
     chips.querySelectorAll('[data-cat]').forEach((b) =>
@@ -315,6 +328,7 @@
   function paintAll() {
     let list = [...(cacheAll || [])];
     if (allState.cat !== 'all') list = list.filter((a) => a.category === allState.cat);
+    if (allState.source !== 'all') list = list.filter((a) => a.source === allState.source);
     if (allState.q.trim()) {
       const q = allState.q.toLowerCase();
       list = list.filter((a) => (a.title + a.description + a.source).toLowerCase().includes(q));
