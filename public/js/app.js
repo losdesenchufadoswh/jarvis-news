@@ -66,7 +66,7 @@
   };
 
   function router() {
-    let hash = location.hash || '#/home';
+    let hash = location.hash || '#/chat';
     const [base] = hash.split('?');
     // Si salimos del chat, destruye el reconocimiento de voz
     if (base !== '#/chat' && JarvisVoice.isSupported()) JarvisVoice.destroy();
