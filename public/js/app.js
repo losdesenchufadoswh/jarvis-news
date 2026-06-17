@@ -193,12 +193,9 @@
       if (s) jarvisAsk(s.dataset.sug);
     });
 
-    if (chatLog.length) {
-      paintChatLog();
-      if (voiceSupported) JarvisVoice.start();
-    } else {
-      jarvisGreet();
-    }
+    // Siempre re-saluda al entrar al chat (nueva personalidad cada sesión)
+    chatLog = [];
+    jarvisGreet();
 
     Api.yesterday().then((a) => {
       setStatus(a[0]?.fetchedAt);
@@ -593,7 +590,13 @@
     }
 
     const routeBtn = e.target.closest('[data-route]');
-    if (routeBtn) { location.hash = routeBtn.dataset.route; }
+    if (routeBtn) {
+      // Desbloquea síntesis de voz en iOS (debe ocurrir en gesto de usuario)
+      if (routeBtn.dataset.route === '#/chat' && JarvisVoice.isSupported()) {
+        JarvisVoice.unlock();
+      }
+      location.hash = routeBtn.dataset.route;
+    }
   });
 
   function doFav(article, btn) {

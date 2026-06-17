@@ -1,17 +1,25 @@
-/* voice.js — Web Speech API (STT continuo + TTS) para JARVIS.
-   Funciona en Chrome/Edge/Safari. Sin dependencias Python. */
+/* voice.js — Web Speech API (STT continuo + TTS).
+   Funciona en Chrome/Edge/Safari/iOS. Sin Python. */
 window.JarvisVoice = (() => {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   let rec        = null;
   let muted      = false;
   let listening  = false;
   let speaking   = false;
-  let active     = false;   // true cuando el chat está abierto
+  let active     = false;
   let onResult   = null;
-  let onChange   = null;    // callback(isListening) para el indicador visual
+  let onChange   = null;
   let restartTm  = null;
+  let speakGuard = false;   // bloqueo extra anti-self-listening
 
   function _notify() { if (onChange) onChange(listening && !muted && !speaking); }
+
+  // Desbloquea el sintetizador en iOS (debe llamarse dentro de un gesto del usuario).
+  function unlock() {
+    const utt = new SpeechSynthesisUtterance('');
+    utt.volume = 0;
+    speechSynthesis.speak(utt);
+  }
 
   function init({ onTranscript, onListenChange } = {}) {
     onResult = onTranscript;
@@ -19,13 +27,12 @@ window.JarvisVoice = (() => {
     active   = true;
     muted    = false;
     if (!SR) return false;
-
     _buildRec();
     return true;
   }
 
   function _buildRec() {
-    if (rec) { try { rec.abort(); } catch(e) {} }
+    if (rec) { try { rec.abort(); } catch(e) {} rec = null; }
     rec = new SR();
     rec.lang            = 'es-PR';
     rec.continuous      = true;
@@ -33,6 +40,8 @@ window.JarvisVoice = (() => {
     rec.maxAlternatives = 1;
 
     rec.onresult = (evt) => {
+      // Ignora completamente si JARVIS está hablando o hay guarda activa
+      if (speaking || speakGuard) return;
       const last = evt.results[evt.results.length - 1];
       if (last.isFinal) {
         const text = last[0].transcript.trim();
@@ -47,7 +56,7 @@ window.JarvisVoice = (() => {
       _notify();
       if (active && !muted && !speaking) {
         clearTimeout(restartTm);
-        restartTm = setTimeout(_safeStart, 500);
+        restartTm = setTimeout(_safeStart, 600);
       }
     };
 
@@ -63,64 +72,79 @@ window.JarvisVoice = (() => {
   }
 
   function _safeStart() {
-    if (!rec || listening || muted || !active) return;
-    // Rebuild rec to avoid InvalidStateError on repeated start
+    if (!rec || listening || muted || !active || speaking) return;
     _buildRec();
     try { rec.start(); } catch(e) {}
   }
 
   function start() {
     clearTimeout(restartTm);
-    _safeStart();
+    if (!speaking) _safeStart();
   }
 
   function stop() {
     clearTimeout(restartTm);
-    if (rec && listening) { try { rec.stop(); } catch(e) {} }
+    if (rec && listening) {
+      try { rec.abort(); } catch(e) {}  // abort = parada inmediata
+    }
     listening = false;
     _notify();
+  }
+
+  // Elige la mejor voz española disponible: prefiere masculina y grave.
+  function _pickVoice(utt) {
+    const vv = speechSynthesis.getVoices();
+    if (!vv.length) return;
+    // Orden de preferencia: male español, español con nombre conocido, cualquier español
+    const male = vv.find(v => v.lang.startsWith('es') && /jorge|pablo|carlos|diego|miguel|male|hombre|alvaro|enrique|juan/i.test(v.name));
+    const esUS = vv.find(v => v.lang === 'es-US');
+    const esPR = vv.find(v => v.lang === 'es-PR');
+    const esAny = vv.find(v => v.lang.startsWith('es') && v.localService);
+    const fallback = vv.find(v => v.lang.startsWith('es'));
+    const chosen = male || esPR || esUS || esAny || fallback;
+    if (chosen) utt.voice = chosen;
   }
 
   function speak(text, onDone) {
     if (!text) { onDone && onDone(); return; }
 
-    // Pausa el STT mientras habla JARVIS
+    // Para el reconocimiento ANTES de hablar
     stop();
-    speaking = true;
+    speaking   = true;
+    speakGuard = true;   // bloqueo doble
     _notify();
 
     speechSynthesis.cancel();
 
     const utt = new SpeechSynthesisUtterance(text);
     utt.lang   = 'es-PR';
-    utt.rate   = 0.93;
-    utt.pitch  = 0.82;   // más grave = más JARVIS
+    utt.rate   = 0.88;   // más pausado = más mayordomo elegante
+    utt.pitch  = 0.78;   // más grave
     utt.volume = 1.0;
 
-    const _assignVoice = () => {
-      if (muted) return;
-      const vv = speechSynthesis.getVoices();
-      const pick = vv.find(v => v.lang === 'es-PR')
-        || vv.find(v => v.lang === 'es-US')
-        || vv.find(v => v.lang.startsWith('es') && v.localService)
-        || vv.find(v => v.lang.startsWith('es'));
-      if (pick) utt.voice = pick;
-    };
+    if (speechSynthesis.getVoices().length) {
+      _pickVoice(utt);
+    } else {
+      speechSynthesis.addEventListener('voiceschanged', () => _pickVoice(utt), { once: true });
+    }
 
-    if (speechSynthesis.getVoices().length) _assignVoice();
-    else speechSynthesis.addEventListener('voiceschanged', _assignVoice, { once: true });
+    if (muted) {
+      speaking = false; speakGuard = false;
+      onDone && onDone();
+      return;
+    }
 
     const _done = () => {
       speaking = false;
+      // Mantiene el guard activo 800ms extra para no capturar el eco final
+      setTimeout(() => { speakGuard = false; }, 800);
       _notify();
       onDone && onDone();
       if (active && !muted) {
         clearTimeout(restartTm);
-        restartTm = setTimeout(_safeStart, 600);
+        restartTm = setTimeout(_safeStart, 1000);
       }
     };
-
-    if (muted) { speaking = false; onDone && onDone(); return; }
 
     utt.onend   = _done;
     utt.onerror = _done;
@@ -132,11 +156,9 @@ window.JarvisVoice = (() => {
     if (muted) {
       speechSynthesis.cancel();
       stop();
-    } else {
-      if (active && !speaking) {
-        clearTimeout(restartTm);
-        restartTm = setTimeout(_safeStart, 300);
-      }
+    } else if (active && !speaking) {
+      clearTimeout(restartTm);
+      restartTm = setTimeout(_safeStart, 300);
     }
     _notify();
     return muted;
@@ -147,7 +169,7 @@ window.JarvisVoice = (() => {
     clearTimeout(restartTm);
     speechSynthesis.cancel();
     if (rec) { try { rec.abort(); } catch(e) {} rec = null; }
-    listening = false; speaking = false;
+    listening = false; speaking = false; speakGuard = false;
     _notify();
   }
 
@@ -155,5 +177,5 @@ window.JarvisVoice = (() => {
   function isMuted()      { return muted; }
   function isListening()  { return listening && !speaking; }
 
-  return { init, start, stop, speak, toggleMute, destroy, isSupported, isMuted, isListening };
+  return { init, start, stop, speak, unlock, toggleMute, destroy, isSupported, isMuted, isListening };
 })();
