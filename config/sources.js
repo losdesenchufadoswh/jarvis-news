@@ -93,7 +93,7 @@ export const CATEGORIES = [
       'Estrecho de Ormuz petroleo',
     ],
     feeds: [
-      'https://oilprice.com/rss/main',
+      { url: 'https://oilprice.com/rss/main', source: 'OilPrice' },
     ],
     max: 6,
   },
@@ -111,8 +111,7 @@ export const CATEGORIES = [
       'cambio climatico Caribe',
     ],
     feeds: [
-      // National Hurricane Center - Atlantic
-      'https://www.nhc.noaa.gov/index-at.xml',
+      { url: 'https://www.nhc.noaa.gov/index-at.xml', source: 'NOAA' },
     ],
     max: 6,
   },
@@ -133,9 +132,9 @@ export const CATEGORIES = [
       'nuclear energy SMR fusion',
     ],
     feeds: [
-      'https://www.theverge.com/rss/index.xml',
-      'https://techcrunch.com/feed/',
-      'https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml',
+      { url: 'https://www.theverge.com/rss/index.xml', source: 'The Verge' },
+      { url: 'https://techcrunch.com/feed/', source: 'TechCrunch' },
+      { url: 'https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml', source: 'New York Times' },
     ],
     max: 8,
   },
@@ -155,7 +154,7 @@ export const CATEGORIES = [
       'deuda Puerto Rico PROMESA presupuesto',
     ],
     feeds: [
-      'https://elnuevodiario.com.do/feed/',
+      { url: 'https://elnuevodiario.com.do/feed/', source: 'El Nuevo Día' },
     ],
     max: 8,
   },
