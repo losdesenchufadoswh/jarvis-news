@@ -6,6 +6,15 @@ window.Api = (() => {
     if (!r.ok) throw new Error('API ' + r.status + ' ' + path);
     return r.json();
   };
+  const post = async (path, data) => {
+    const r = await fetch(base + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!r.ok) throw new Error('API ' + r.status + ' ' + path);
+    return r.json();
+  };
   return {
     health:        ()        => get('/api/news/yesterday'),
     yesterday:     (refresh) => get('/api/news/yesterday' + (refresh ? '?refresh=1' : '')),
@@ -20,5 +29,7 @@ window.Api = (() => {
     categories:    ()        => get('/api/settings/categories'),
     jarvisGreeting:()        => get('/api/jarvis/greeting'),
     jarvisAsk:     (q)       => get('/api/jarvis?q=' + encodeURIComponent(q)),
+    voiceTranscribe: (audio) => post('/api/voice/transcribe', { audio }),
+    voiceSpeak:      (text)  => post('/api/voice/speak', { text }),
   };
 })();

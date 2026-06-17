@@ -24,7 +24,8 @@ import express from 'express';
 import cors from 'cors';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile, unlink } from 'node:fs/promises';
+import { execSync } from 'node:child_process';
 import { getArticles, getCacheInfo } from './lib/aggregator.js';
 import { CATEGORIES } from './config/sources.js';
 import { jarvisRespond, jarvisGreeting } from './lib/jarvis.js';
@@ -86,6 +87,42 @@ app.get('/api/jarvis/greeting', async (req, res) => {
 app.get('/api/jarvis', async (req, res) => {
   const articles = await loadArticles({});
   res.json(jarvisRespond(req.query.q || '', articles));
+});
+
+// ---- VOICE (speech-to-text + text-to-speech) ----
+app.post('/api/voice/transcribe', async (req, res) => {
+  try {
+    const { audio } = req.body; // base64 encoded WAV
+    if (!audio) return res.status(400).json({ error: 'No audio provided' });
+
+    const audioPath = path.join(__dirname, 'temp-audio.wav');
+    const buffer = Buffer.from(audio, 'base64');
+    await writeFile(audioPath, buffer);
+
+    const text = execSync(`py speech-to-text.py "${audioPath}"`, { cwd: __dirname, encoding: 'utf-8' }).trim();
+    await unlink(audioPath).catch(() => {});
+
+    res.json({ text });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/voice/speak', async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text) return res.status(400).json({ error: 'No text provided' });
+
+    const audioPath = path.join(__dirname, 'temp-speech.wav');
+    execSync(`py text-to-speech.py "${text.replace(/"/g, '\\"')}" "${audioPath}"`, { cwd: __dirname });
+
+    const audio = await readFile(audioPath, 'base64');
+    await unlink(audioPath).catch(() => {});
+
+    res.json({ audio });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/news/today', async (req, res) => {

@@ -154,11 +154,48 @@
           <div class="jchat-sugs" id="jSugs"></div>
           <form class="jchat-input" id="jForm" autocomplete="off">
             <input id="jInput" placeholder="Escríbele a JARVIS…  (p. ej. «noticias de energía»)" autocomplete="off"/>
+            <button class="jchat-voice" id="jVoice" type="button" title="Hablar a JARVIS">🎤</button>
             <button class="jchat-send" type="submit" title="Enviar">➤</button>
           </form>
         </div>
       </div>`;
     renderSugs(JARVIS_DEFAULT_SUGS);
+    let mediaRecorder, audioChunks = [];
+    $('#jVoice').addEventListener('click', async (e) => {
+      e.preventDefault();
+      const btn = $('#jVoice');
+      if (mediaRecorder?.state === 'recording') {
+        mediaRecorder.stop();
+        btn.textContent = '🎤';
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+        mediaRecorder.ondataavailable = (evt) => audioChunks.push(evt.data);
+        mediaRecorder.onstop = async () => {
+          btn.textContent = '⏳';
+          const blob = new Blob(audioChunks, { type: 'audio/wav' });
+          const reader = new FileReader();
+          reader.onload = async () => {
+            const audio = reader.result.split(',')[1];
+            try {
+              const res = await Api.voiceTranscribe(audio);
+              if (res.text) $('#jInput').value = res.text;
+            } catch (err) {
+              toast('Error transcribiendo: ' + err.message);
+            }
+            btn.textContent = '🎤';
+          };
+          reader.readAsDataURL(blob);
+        };
+        mediaRecorder.start();
+        btn.textContent = '🔴';
+      } catch (err) {
+        toast('Micrófono no disponible: ' + err.message);
+      }
+    });
     $('#jForm').addEventListener('submit', (e) => {
       e.preventDefault();
       const inp = $('#jInput'); const v = inp.value; inp.value = '';
