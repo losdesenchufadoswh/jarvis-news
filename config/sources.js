@@ -154,7 +154,7 @@ export const CATEGORIES = [
       'deuda Puerto Rico PROMESA presupuesto',
     ],
     feeds: [
-      { url: 'https://elnuevodiario.com.do/feed/', source: 'El Nuevo Día' },
+      { url: 'https://www.elnuevodia.com/feed/', source: 'El Nuevo Día' },
     ],
     max: 8,
   },
