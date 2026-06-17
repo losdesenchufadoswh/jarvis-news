@@ -327,9 +327,16 @@
         if (res.articles && res.articles.length) bb.insertAdjacentHTML('beforeend', refsHtml(res.articles));
         const m = $('#jMsgs'); if (m) m.scrollTop = m.scrollHeight;
       });
-      // Habla la respuesta; al terminar reanuda la escucha automáticamente
       speakText(res.reply);
       renderSugs(res.suggestions || JARVIS_DEFAULT_SUGS);
+
+      // Maneja flags de control de escucha
+      if (res.stopListening && JarvisVoice.isSupported()) {
+        JarvisVoice.stop(); // pausa el micrófono (despedida)
+      } else if (res.startListening && JarvisVoice.isSupported() && !JarvisVoice.isMuted()) {
+        // Reactiva con delay para no capturar eco
+        setTimeout(() => JarvisVoice.start(), 2000);
+      }
     } catch (e) {
       hideTyping();
       const bb = paintMsg('bot');
