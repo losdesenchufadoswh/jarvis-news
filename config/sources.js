@@ -155,7 +155,7 @@ export const CATEGORIES = [
       'deuda Puerto Rico PROMESA presupuesto',
     ],
     feeds: [
-      'https://www.elnuevodiario.com.do/feed/',
+      'https://elnuevodiario.com.do/feed/',
     ],
     max: 8,
   },
@@ -198,7 +198,8 @@ export const PRIORITY_KEYWORDS = [
   { words: ['apagon', 'corte', 'racionamiento', 'sin luz', 'sin agua'], boost: 3 },
   { words: ['luma', 'aaa', 'nepr', 'genera'], boost: 2 },
   { words: ['aumento', 'tarifa', 'sube', 'precio'], boost: 2 },
-  { words: ['puerto rico', 'gobernador', 'gobernadora', 'nuevo dia', 'nytimes'], boost: 3 },
+  { words: ['puerto rico', 'gobernador', 'gobernadora'], boost: 3 },
+  { words: ['nuevo dia', 'nytimes', 'new york times'], boost: 4 },
   { words: ['openai', 'chatgpt', 'claude', 'gemini', 'gpt-', 'tesla', 'elon'], boost: 2 },
   { words: ['inflacion', 'reserva federal', 'fed', 'petroleo', 'ormuz'], boost: 1 },
 ];
