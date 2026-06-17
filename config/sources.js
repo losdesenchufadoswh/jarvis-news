@@ -153,9 +153,7 @@ export const CATEGORIES = [
       'economia empleo Puerto Rico',
       'deuda Puerto Rico PROMESA presupuesto',
     ],
-    feeds: [
-      { url: 'https://www.elnuevodia.com/feed/', source: 'El Nuevo Día' },
-    ],
+    feeds: [],
     max: 8,
   },
   {
