@@ -90,38 +90,55 @@ app.get('/api/jarvis', async (req, res) => {
 });
 
 // ---- VOICE (speech-to-text + text-to-speech) ----
+// Comando de Python: en Windows el launcher es "py -3"; configurable por env.
+const PYTHON_CMD = process.env.PYTHON_CMD || 'py -3';
+
 app.post('/api/voice/transcribe', async (req, res) => {
+  const audioPath = path.join(__dirname, `temp-audio-${Date.now()}.wav`);
   try {
-    const { audio } = req.body; // base64 encoded WAV
+    const { audio } = req.body; // base64 (el navegador manda WebM/Opus)
     if (!audio) return res.status(400).json({ error: 'No audio provided' });
 
-    const audioPath = path.join(__dirname, 'temp-audio.wav');
-    const buffer = Buffer.from(audio, 'base64');
-    await writeFile(audioPath, buffer);
+    await writeFile(audioPath, Buffer.from(audio, 'base64'));
 
-    const text = execSync(`py -3 speech-to-text.py "${audioPath}"`, { cwd: __dirname, encoding: 'utf-8' }).trim();
-    await unlink(audioPath).catch(() => {});
+    // 60s de margen: la 1ra vez Whisper baja el modelo (~140MB).
+    const text = execSync(`${PYTHON_CMD} speech-to-text.py "${audioPath}"`, {
+      cwd: __dirname,
+      encoding: 'utf-8',
+      timeout: 60000,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
 
     res.json({ text });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const detail = err.stderr ? String(err.stderr).trim() : err.message;
+    console.error('[voice/transcribe]', detail);
+    res.status(500).json({ error: detail });
+  } finally {
+    await unlink(audioPath).catch(() => {});
   }
 });
 
 app.post('/api/voice/speak', async (req, res) => {
+  const audioPath = path.join(__dirname, `temp-speech-${Date.now()}.wav`);
   try {
     const { text } = req.body;
     if (!text) return res.status(400).json({ error: 'No text provided' });
 
-    const audioPath = path.join(__dirname, 'temp-speech.wav');
-    execSync(`py -3 text-to-speech.py "${text.replace(/"/g, '\\"')}" "${audioPath}"`, { cwd: __dirname });
+    execSync(`${PYTHON_CMD} text-to-speech.py "${text.replace(/"/g, '\\"')}" "${audioPath}"`, {
+      cwd: __dirname,
+      timeout: 60000,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
 
     const audio = await readFile(audioPath, 'base64');
-    await unlink(audioPath).catch(() => {});
-
     res.json({ audio });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const detail = err.stderr ? String(err.stderr).trim() : err.message;
+    console.error('[voice/speak]', detail);
+    res.status(500).json({ error: detail });
+  } finally {
+    await unlink(audioPath).catch(() => {});
   }
 });
 

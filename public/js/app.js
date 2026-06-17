@@ -166,27 +166,37 @@
       const btn = $('#jVoice');
       if (mediaRecorder?.state === 'recording') {
         mediaRecorder.stop();
-        btn.textContent = '🎤';
         return;
       }
       try {
+        voiceOn = true; // si hablas, JARVIS te responde hablando
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
+        // Elige un mime soportado (Chrome=webm/opus, Safari=mp4). PyAV decodifica ambos.
+        const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
+          : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '';
+        mediaRecorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
         audioChunks = [];
-        mediaRecorder.ondataavailable = (evt) => audioChunks.push(evt.data);
+        mediaRecorder.ondataavailable = (evt) => { if (evt.data.size) audioChunks.push(evt.data); };
         mediaRecorder.onstop = async () => {
+          stream.getTracks().forEach((t) => t.stop()); // libera el micrófono
           btn.textContent = '⏳';
-          const blob = new Blob(audioChunks, { type: 'audio/wav' });
+          const blob = new Blob(audioChunks, { type: mime || 'audio/webm' });
           const reader = new FileReader();
           reader.onload = async () => {
             const audio = reader.result.split(',')[1];
             try {
               const res = await Api.voiceTranscribe(audio);
-              if (res.text) $('#jInput').value = res.text;
+              btn.textContent = '🎤';
+              if (res.text && res.text.trim()) {
+                $('#jInput').value = '';
+                jarvisAsk(res.text.trim()); // auto-envía lo que dijiste
+              } else {
+                toast('No te escuché bien, FER. Intenta de nuevo.');
+              }
             } catch (err) {
+              btn.textContent = '🎤';
               toast('Error transcribiendo: ' + err.message);
             }
-            btn.textContent = '🎤';
           };
           reader.readAsDataURL(blob);
         };
@@ -257,6 +267,19 @@
     msgs.appendChild(w); msgs.scrollTop = msgs.scrollHeight;
   }
   function hideTyping() { $('#jTyping')?.remove(); }
+  // JARVIS habla su respuesta (TTS local con Piper). Solo si el altavoz está activo.
+  let voiceOn = false;       // se activa al usar el micrófono o el botón 🔊
+  let currentAudio = null;
+  async function speakText(text) {
+    if (!voiceOn || !text) return;
+    try {
+      if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+      const res = await Api.voiceSpeak(text);
+      if (!res.audio) return;
+      currentAudio = new Audio('data:audio/wav;base64,' + res.audio);
+      currentAudio.play().catch(() => {});
+    } catch (e) { /* silencioso: el texto ya está en pantalla */ }
+  }
   function renderSugs(list) {
     const el = $('#jSugs'); if (!el) return;
     el.innerHTML = (list || []).map((s) => `<button class="jsug" type="button" data-sug="${UI.esc(s)}">${UI.esc(s)}</button>`).join('');
@@ -301,6 +324,7 @@
         if (res.articles && res.articles.length) bb.insertAdjacentHTML('beforeend', refsHtml(res.articles));
         const m = $('#jMsgs'); if (m) m.scrollTop = m.scrollHeight;
       });
+      speakText(res.reply);
       renderSugs(res.suggestions || JARVIS_DEFAULT_SUGS);
     } catch (e) {
       hideTyping();

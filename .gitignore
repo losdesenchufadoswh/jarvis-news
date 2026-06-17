@@ -3,3 +3,9 @@ node_modules/
 *.log
 .DS_Store
 y.json
+
+# Voice: modelos pesados y archivos temporales (no van a git)
+*.onnx
+*.onnx.json
+temp-audio-*.wav
+temp-speech-*.wav
